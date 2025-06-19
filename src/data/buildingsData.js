@@ -39,7 +39,7 @@ export const MAP_CONFIG = {
 };
 
 export const GOOGLE_MAPS_CONFIG = {
-    apiKey: 'AIzaSyACeDs-Q6JjD0PBucNvY1D7rdAakXgCEiQ',
+    apiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     libraries: ['marker']
 };
 
@@ -48,4 +48,22 @@ export const LOCATION_OPTIONS = {
     enableHighAccuracy: true,
     timeout: 10000,
     maximumAge: 1000
+};
+
+// Función para validar que la API key esté configurada
+export const validateGoogleMapsConfig = () => {
+    if (!GOOGLE_MAPS_CONFIG.apiKey) {
+        throw new Error(
+            'VITE_GOOGLE_MAPS_API_KEY no está configurada. ' +
+            'Agrega tu API key de Google Maps al archivo .env'
+        );
+    }
+
+    if (GOOGLE_MAPS_CONFIG.apiKey.startsWith('your_')) {
+        throw new Error(
+            'Debes reemplazar "your_google_maps_api_key_here" con tu API key real en el archivo .env'
+        );
+    }
+
+    return true;
 };

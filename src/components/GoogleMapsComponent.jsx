@@ -1,5 +1,6 @@
 // components/GoogleMapsComponent.jsx
 import React, { useEffect, useRef, useState } from 'react';
+import './GoogleMapsComponent.css';
 import { BUILDINGS_DATA, MAP_CONFIG, GOOGLE_MAPS_CONFIG, LOCATION_OPTIONS } from '../data/buildingsData';
 import { 
   getCurrentUserLocation, 
@@ -32,7 +33,6 @@ const GoogleMapsComponent = () => {
   const [selectedBuilding, setSelectedBuilding] = useState(null);
   const [error, setError] = useState(null);
   const [isMapReady, setIsMapReady] = useState(false);
-  const [isMapCenteredOnUser, setIsMapCenteredOnUser] = useState(false);
   const [locationStatus, setLocationStatus] = useState({
     available: false,
     permission: null,
@@ -94,17 +94,6 @@ const GoogleMapsComponent = () => {
     initializeMap();
   }, []);
 
-  // Función para centrar el mapa en la ubicación del usuario
-  const centerMapOnUser = (location, zoom = 19) => {
-    if (mapInstance.current) {
-      const userPosition = { lat: location.lat, lng: location.lng };
-      mapInstance.current.panTo(userPosition);
-      mapInstance.current.setZoom(zoom);
-      setIsMapCenteredOnUser(true);
-      console.log('🎯 Mapa centrado en la ubicación del usuario');
-    }
-  };
-
   // Iniciar seguimiento automático cuando el mapa esté listo y la geolocalización disponible
   useEffect(() => {
     const startAutoTracking = async () => {
@@ -127,8 +116,9 @@ const GoogleMapsComponent = () => {
         const initialLocation = await getCurrentUserLocation(LOCATION_OPTIONS);
         handleLocationUpdate(initialLocation);
         
-        // Centrar mapa en ubicación del usuario automáticamente
-        centerMapOnUser(initialLocation);
+        // Centrar mapa en ubicación del usuario
+        mapInstance.current.panTo({ lat: initialLocation.lat, lng: initialLocation.lng });
+        mapInstance.current.setZoom(19);
         
         // Iniciar seguimiento continuo
         watchIdRef.current = await startLocationTracking(
@@ -238,11 +228,6 @@ const GoogleMapsComponent = () => {
           location.accuracy
         );
       }
-
-      // Si el mapa aún no se ha centrado en el usuario, hacerlo ahora
-      if (!isMapCenteredOnUser) {
-        centerMapOnUser(location);
-      }
     }
 
     console.log(`📍 Ubicación actualizada: ${location.lat.toFixed(6)}, ${location.lng.toFixed(6)} (±${Math.round(location.accuracy)}m)`);
@@ -259,71 +244,127 @@ const GoogleMapsComponent = () => {
   const toggleTracking = async () => {
     if (isTracking) {
       // Detener tracking
-      stopLocationTracking(watchIdRef.current);
-      watchIdRef.current = null;
-      setIsTracking(false);
-      console.log('🛑 Seguimiento detenido manualmente');
+      try {
+        if (watchIdRef.current) {
+          stopLocationTracking(watchIdRef.current);
+          watchIdRef.current = null;
+        }
+        setIsTracking(false);
+        console.log('🛑 Seguimiento detenido manualmente');
+      } catch (err) {
+        console.error('Error al detener seguimiento:', err);
+      }
     } else {
       // Iniciar tracking
+      setError(null);
+      
       try {
-        setError(null);
-        
-        // Verificar permisos nuevamente
-        const permissionStatus = await checkLocationPermission();
-        if (permissionStatus.state === 'denied') {
-          setError('Los permisos de ubicación están denegados. Habilítalos en la configuración del navegador.');
-          return;
+        // Verificación básica de geolocalización
+        if (!navigator.geolocation) {
+          throw new Error('Geolocalización no disponible en este navegador');
         }
 
-        // Obtener ubicación inicial
-        const location = await getCurrentUserLocation(LOCATION_OPTIONS);
+        // Obtener ubicación inicial sin verificar permisos complejos
+        const location = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              resolve({
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+                accuracy: position.coords.accuracy,
+                timestamp: position.timestamp
+              });
+            },
+            (error) => {
+              const messages = {
+                1: 'Permisos de ubicación denegados',
+                2: 'Ubicación no disponible',
+                3: 'Tiempo de espera agotado'
+              };
+              reject(new Error(messages[error.code] || 'Error desconocido'));
+            },
+            LOCATION_OPTIONS
+          );
+        });
+
         handleLocationUpdate(location);
 
-        // Centrar mapa en la nueva ubicación
-        centerMapOnUser(location);
-
-        // Iniciar seguimiento
-        watchIdRef.current = await startLocationTracking(
-          handleLocationUpdate,
-          handleLocationError,
+        // Iniciar seguimiento continuo
+        const watchId = navigator.geolocation.watchPosition(
+          (position) => {
+            const newLocation = {
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+              accuracy: position.coords.accuracy,
+              timestamp: position.timestamp
+            };
+            handleLocationUpdate(newLocation);
+          },
+          (error) => {
+            const messages = {
+              1: 'Permisos de ubicación denegados',
+              2: 'Ubicación no disponible',
+              3: 'Tiempo de espera agotado'
+            };
+            handleLocationError(new Error(messages[error.code] || 'Error desconocido'));
+          },
           LOCATION_OPTIONS
         );
         
-        if (watchIdRef.current) {
+        if (watchId) {
+          watchIdRef.current = watchId;
           setIsTracking(true);
           console.log('🎯 Seguimiento iniciado manualmente');
         }
       } catch (err) {
+        console.error('Error al iniciar seguimiento:', err);
         setError(`No se pudo iniciar el seguimiento: ${err.message}`);
       }
     }
   };
 
-  // Función para centrar manualmente el mapa en el usuario
-  const centerOnUser = () => {
-    if (userLocation) {
-      centerMapOnUser(userLocation);
-    } else {
-      alert('No hay ubicación del usuario disponible');
-    }
-  };
-
   // Solicitar permisos manualmente
   const requestLocationAccess = async () => {
+    setError(null);
+    
     try {
-      setError(null);
-      const location = await getCurrentUserLocation(LOCATION_OPTIONS);
+      if (!navigator.geolocation) {
+        throw new Error('Geolocalización no disponible en este navegador');
+      }
+
+      const location = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            resolve({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+              accuracy: position.coords.accuracy,
+              timestamp: position.timestamp
+            });
+          },
+          (error) => {
+            const messages = {
+              1: 'Permisos de ubicación denegados',
+              2: 'Ubicación no disponible',
+              3: 'Tiempo de espera agotado'
+            };
+            reject(new Error(messages[error.code] || 'Error desconocido'));
+          },
+          LOCATION_OPTIONS
+        );
+      });
+
       handleLocationUpdate(location);
-      
-      // Centrar mapa inmediatamente
-      centerMapOnUser(location);
-      
-      // Actualizar estado de permisos
-      const newStatus = await getLocationStatus();
-      setLocationStatus(prev => ({ ...prev, permission: newStatus.permission }));
-      
       setPermissionRequested(true);
+      
+      // Actualizar estado de forma simple
+      setLocationStatus(prev => ({ 
+        ...prev, 
+        permission: { state: 'granted', message: 'Permisos concedidos' }
+      }));
+      
     } catch (err) {
+      console.error('Error al solicitar acceso a ubicación:', err);
       setError(err.message);
     }
   };
@@ -331,169 +372,46 @@ const GoogleMapsComponent = () => {
   // Cleanup al desmontar
   useEffect(() => {
     return () => {
-      if (watchIdRef.current) {
-        stopLocationTracking(watchIdRef.current);
+      if (watchIdRef.current && navigator.geolocation) {
+        try {
+          navigator.geolocation.clearWatch(watchIdRef.current);
+        } catch (err) {
+          console.error('Error en cleanup:', err);
+        }
       }
     };
   }, []);
 
   return (
-    <div className="w-full">
+    <div className="google-maps-container">
       {/* Error Display */}
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <strong>⚠️ Atención:</strong> {error}
-            </div>
-            {error.includes('permisos') && (
-              <button
-                onClick={requestLocationAccess}
-                className="ml-4 px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
-              >
-                Solicitar Permisos
-              </button>
-            )}
+        <div className="error-display">
+          <div>
+            <strong>⚠️ Atención:</strong> {error}
           </div>
+          {error.includes('permisos') && (
+            <button onClick={requestLocationAccess} className="button-base permission-button">
+              Solicitar Permisos
+            </button>
+          )}
         </div>
       )}
 
       {/* Warning de permisos denegados */}
       {locationStatus.permission?.state === 'denied' && !error && (
-        <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <strong>🔒 Permisos de ubicación denegados.</strong> Para usar el seguimiento, habilita la ubicación en la configuración del navegador.
-            </div>
-            <button
-              onClick={requestLocationAccess}
-              className="ml-4 px-3 py-1 bg-yellow-600 text-white rounded text-sm hover:bg-yellow-700"
-            >
-              Reintentar
-            </button>
+        <div className="warning-display">
+          <div>
+            <strong>🔒 Permisos de ubicación denegados.</strong> Para usar el seguimiento, habilita la ubicación en la configuración del navegador.
           </div>
+          <button onClick={requestLocationAccess} className="button-base permission-button">
+            Reintentar
+          </button>
         </div>
       )}
 
-      {/* Controles */}
-      <div className="bg-blue-50 p-4 mb-4 rounded-lg">
-        <div className="flex justify-between items-center mb-2">
-          <h2 className="text-xl font-bold text-blue-800">Mapa Universitario</h2>
-          <div className="flex space-x-2">
-            {/* Botón para centrar en usuario */}
-            {userLocation && (
-              <button
-                onClick={centerOnUser}
-                disabled={!isMapReady}
-                className="px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 bg-blue-500 hover:bg-blue-600 text-white"
-              >
-                📍 Centrar en Mi Ubicación
-              </button>
-            )}
-            
-            {locationStatus.available && (
-              <button
-                onClick={toggleTracking}
-                disabled={!isMapReady}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 ${
-                  isTracking
-                    ? 'bg-red-500 hover:bg-red-600 text-white'
-                    : 'bg-green-500 hover:bg-green-600 text-white'
-                }`}
-              >
-                {isTracking ? '🛑 Detener Seguimiento' : '🎯 Iniciar Seguimiento'}
-              </button>
-            )}
-          </div>
-        </div>
-        
-        <p className="text-blue-600 mb-2">
-          Haz clic en cualquier edificio para ver el directorio de personal y obtener direcciones
-        </p>
-
-        {/* Estado detallado */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 text-sm">
-          <div className="flex items-center space-x-2">
-            <span className={`w-3 h-3 rounded-full ${isMapReady ? 'bg-green-500' : 'bg-red-500'}`}></span>
-            <span>Mapa: {isMapReady ? 'Listo' : 'Cargando...'}</span>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            <span className={`w-3 h-3 rounded-full ${locationStatus.available ? 'bg-green-500' : 'bg-red-500'}`}></span>
-            <span>Geolocalización: {locationStatus.available ? 'Disponible' : 'No disponible'}</span>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            <span className={`w-3 h-3 rounded-full ${
-              locationStatus.permission?.state === 'granted' ? 'bg-green-500' : 
-              locationStatus.permission?.state === 'denied' ? 'bg-red-500' : 'bg-yellow-500'
-            }`}></span>
-            <span>Permisos: {locationStatus.permission?.state || 'Verificando...'}</span>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            <span className={`w-3 h-3 rounded-full ${userLocation ? 'bg-green-500' : 'bg-gray-500'}`}></span>
-            <span>Ubicación: {userLocation ? 'Obtenida' : 'No disponible'}</span>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <span className={`w-3 h-3 rounded-full ${isMapCenteredOnUser ? 'bg-green-500' : 'bg-gray-500'}`}></span>
-            <span>Centrado: {isMapCenteredOnUser ? 'Sí' : 'No'}</span>
-          </div>
-        </div>
-
-        {userLocation && (
-          <div className="mt-3 p-3 bg-white rounded border text-sm">
-            <div className="flex justify-between items-start">
-              <div>
-                <strong>📍 Tu ubicación:</strong> {userLocation.lat.toFixed(6)}, {userLocation.lng.toFixed(6)}
-                {userLocation.accuracy && (
-                  <div className="text-gray-600">
-                    Precisión: ±{Math.round(userLocation.accuracy)}m
-                  </div>
-                )}
-                {userLocation.timestamp && (
-                  <div className="text-gray-500 text-xs">
-                    Última actualización: {new Date(userLocation.timestamp).toLocaleTimeString()}
-                  </div>
-                )}
-              </div>
-              <span className={`px-2 py-1 rounded text-xs ${isTracking ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
-                {isTracking ? '🟢 Seguimiento activo' : '⚪ Seguimiento inactivo'}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {selectedBuilding && (
-          <div className="mt-2 p-2 bg-white rounded border text-sm">
-            <strong>🏢 Edificio seleccionado:</strong> {selectedBuilding.name}
-          </div>
-        )}
-      </div>
-
       {/* Mapa */}
-      <div
-        ref={mapRef}
-        style={{ width: '100%', height: '500px' }}
-        className="border rounded-lg shadow-lg"
-      />
-
-      {/* Información */}
-      <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-        <h3 className="font-bold mb-2">🚀 Características:</h3>
-        <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
-          <li>📍 <strong>Centrado automático</strong> en tu ubicación al cargar la página</li>
-          <li>🎯 <strong>Botón manual</strong> para centrar el mapa en tu ubicación</li>
-          <li>🔒 <strong>Validación de permisos</strong> antes de acceder a la ubicación</li>
-          <li>👥 Directorio de personal por edificio</li>
-          <li>🗺️ Rutas optimizadas para peatones</li>
-          <li>🛰️ Vista híbrida (satélite + calles)</li>
-          <li>ℹ️ Información detallada en ventanas emergentes</li>
-          <li>🎯 Control manual de seguimiento on/off</li>
-          <li>📏 Indicador de precisión y timestamp de ubicación</li>
-        </ul>
-      </div>
+      <div ref={mapRef} className="map-container" />
     </div>
   );
 };

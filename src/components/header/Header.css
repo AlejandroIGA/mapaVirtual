@@ -1,0 +1,14 @@
+.header-component {
+  width: 100%;
+  display: flex;
+  flex-shrink: 0; /* Evita que el header se comprima */
+  background-color: #052c65;
+  color: white;
+  padding: 1rem;
+  text-align: center;
+}
+
+.header-component img {
+  width: 64px;
+  height: 64px;
+}
