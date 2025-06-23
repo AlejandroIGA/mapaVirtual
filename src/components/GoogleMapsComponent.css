@@ -195,3 +195,77 @@
   flex: 1; /* Toma todo el espacio restante disponible */
   min-height: 0; /* Importante para que flex funcione correctamente */
 }
+
+.info-window {
+  font-family: 'Segoe UI', sans-serif;
+  max-width: 320px;
+  padding: 8px;
+  background-color: #fff;
+  border-radius: 10px;
+}
+
+.info-title {
+  color: #1976d2;
+  margin-bottom: 10px;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.info-image-container {
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.info-image {
+  width: 100%;
+  border-radius: 8px;
+  transition: transform 0.3s ease;
+}
+
+.info-image:hover {
+  transform: scale(1.03);
+}
+
+.info-staff {
+  list-style: none;
+  padding-left: 0;
+  margin: 0 0 10px 0;
+}
+
+.info-staff li {
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.info-button {
+  padding: 10px 14px;
+  background-color: #4285f4;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  width: 100%;
+  transition: background-color 0.3s;
+}
+
+.info-button:hover {
+  background-color: #3367d6;
+}
+/* Estilos para forzar InfoWindow sin scroll ni recorte */
+.gm-style-iw {
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 0 !important;
+}
+
+.gm-style-iw > div {
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.building-marker {
+  font-weight: bold;
+  font-size: 14px;
+}
