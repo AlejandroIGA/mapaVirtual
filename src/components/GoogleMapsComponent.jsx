@@ -1,15 +1,21 @@
 // components/GoogleMapsComponent.jsx
-import React, { useEffect, useRef, useState } from 'react';
-import './GoogleMapsComponent.css';
-import { BUILDINGS_DATA, MAP_CONFIG, GOOGLE_MAPS_CONFIG, LOCATION_OPTIONS } from '../data/buildingsData';
-import { 
-  getCurrentUserLocation, 
-  startLocationTracking, 
+import React, { useEffect, useRef, useState } from "react";
+import "./GoogleMapsComponent.css";
+import StaffModal from "./StaffModal/StaffModal";
+import {
+  BUILDINGS_DATA,
+  MAP_CONFIG,
+  GOOGLE_MAPS_CONFIG,
+  LOCATION_OPTIONS,
+} from "../data/buildingsData";
+import {
+  getCurrentUserLocation,
+  startLocationTracking,
   stopLocationTracking,
   getLocationStatus,
   checkLocationPermission,
-  isGeolocationAvailable
-} from '../utils/locationUtils';
+  isGeolocationAvailable,
+} from "../utils/locationUtils";
 import {
   loadGoogleMapsAPI,
   createUserMarker,
@@ -17,9 +23,9 @@ import {
   createAccuracyCircle,
   createBuildingInfoContent,
   calculateAndShowDirections,
-  setupMapDefaults
-} from '../utils/mapUtils';
-
+  setupMapDefaults,
+} from "../utils/mapUtils";
+import VanillaTilt from "vanilla-tilt";
 const GoogleMapsComponent = () => {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
@@ -36,9 +42,11 @@ const GoogleMapsComponent = () => {
   const [locationStatus, setLocationStatus] = useState({
     available: false,
     permission: null,
-    checking: true
+    checking: true,
   });
   const [permissionRequested, setPermissionRequested] = useState(false);
+  const [staffModalOpen, setStaffModalOpen] = useState(false);
+  const [staffModalBuilding, setStaffModalBuilding] = useState(null);
 
   // Verificar estado de geolocalización al cargar
   useEffect(() => {
@@ -48,22 +56,38 @@ const GoogleMapsComponent = () => {
         setLocationStatus({
           available: status.available,
           permission: status.permission,
-          checking: false
+          checking: false,
         });
-        
-        console.log('📍 Estado de geolocalización:', status);
+
+        console.log("📍 Estado de geolocalización:", status);
       } catch (error) {
-        console.error('Error verificando geolocalización:', error);
+        console.error("Error verificando geolocalización:", error);
         setLocationStatus({
           available: false,
           permission: null,
-          checking: false
+          checking: false,
         });
       }
     };
 
     checkLocationAvailability();
   }, []);
+  //Abrir Staff Modal
+  useEffect(() => {
+    window.openStaffModalById = (buildingId) => {
+      console.log("🔍 ID recibido:", buildingId);
+
+      const building = BUILDINGS_DATA.find((b) => String(b.id) === String(buildingId));
+
+      if (building) {
+        setStaffModalBuilding(building);
+        setStaffModalOpen(true);
+      } else {
+        console.warn("⚠️ Edificio no encontrado para abrir modal de staff");
+      }
+    };
+  }, []);
+
 
   // Inicializar mapa
   useEffect(() => {
@@ -71,21 +95,21 @@ const GoogleMapsComponent = () => {
       try {
         // Cargar API
         await loadGoogleMapsAPI(GOOGLE_MAPS_CONFIG);
-        
+
         // Crear mapa
         const map = new window.google.maps.Map(mapRef.current, MAP_CONFIG);
         mapInstance.current = map;
-        
+
         // Configurar mapa para mantener vista roadmap
         setupMapDefaults(map);
-        
+
         // Crear marcadores de edificios
         createBuildingMarkers(map);
-        
+
         setIsMapReady(true);
         setError(null);
-        
-        console.log('✅ Mapa inicializado correctamente');
+
+        console.log("✅ Mapa inicializado correctamente");
       } catch (err) {
         setError(`Error inicializando mapa: ${err.message}`);
       }
@@ -103,8 +127,8 @@ const GoogleMapsComponent = () => {
 
       // Intentar obtener ubicación automáticamente, incluso si no sabemos el estado de permisos
       try {
-        console.log('🎯 Iniciando seguimiento automático...');
-        
+        console.log("🎯 Iniciando seguimiento automático...");
+
         // Usar la API directa de geolocalización para intentar silenciosamente
         const initialLocation = await new Promise((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(
@@ -113,14 +137,14 @@ const GoogleMapsComponent = () => {
                 lat: position.coords.latitude,
                 lng: position.coords.longitude,
                 accuracy: position.coords.accuracy,
-                timestamp: position.timestamp
+                timestamp: position.timestamp,
               });
             },
             (error) => {
               // Solo rechazar si el error no es de permisos
               if (error.code === 1) {
                 // Permisos denegados - fallar silenciosamente
-                console.log('📍 Permisos de ubicación no disponibles');
+                console.log("📍 Permisos de ubicación no disponibles");
                 resolve(null);
               } else {
                 reject(error);
@@ -129,18 +153,21 @@ const GoogleMapsComponent = () => {
             {
               ...LOCATION_OPTIONS,
               timeout: 5000, // Timeout más corto para no bloquear
-              maximumAge: 30000 // Permitir ubicaciones recientes
+              maximumAge: 30000, // Permitir ubicaciones recientes
             }
           );
         });
 
         if (initialLocation) {
           handleLocationUpdate(initialLocation);
-          
+
           // Centrar mapa en ubicación del usuario
-          mapInstance.current.panTo({ lat: initialLocation.lat, lng: initialLocation.lng });
+          mapInstance.current.panTo({
+            lat: initialLocation.lat,
+            lng: initialLocation.lng,
+          });
           mapInstance.current.setZoom(19);
-          
+
           // Iniciar seguimiento continuo
           const watchId = navigator.geolocation.watchPosition(
             (position) => {
@@ -148,33 +175,35 @@ const GoogleMapsComponent = () => {
                 lat: position.coords.latitude,
                 lng: position.coords.longitude,
                 accuracy: position.coords.accuracy,
-                timestamp: position.timestamp
+                timestamp: position.timestamp,
               };
               handleLocationUpdate(newLocation);
             },
             (error) => {
               // Manejo silencioso de errores de seguimiento
-              if (error.code !== 1) { // No mostrar errores de permisos
-                console.warn('⚠️ Error en seguimiento:', error.message);
+              if (error.code !== 1) {
+                // No mostrar errores de permisos
+                console.warn("⚠️ Error en seguimiento:", error.message);
               }
             },
             {
               ...LOCATION_OPTIONS,
-              timeout: 10000
+              timeout: 10000,
             }
           );
-          
+
           if (watchId) {
             watchIdRef.current = watchId;
             setIsTracking(true);
-            console.log('✅ Seguimiento automático iniciado');
+            console.log("✅ Seguimiento automático iniciado");
           }
         } else {
-          console.log('📍 Ubicación no disponible - continuando sin seguimiento');
+          console.log(
+            "📍 Ubicación no disponible - continuando sin seguimiento"
+          );
         }
-        
       } catch (err) {
-        console.log('📍 Seguimiento automático no disponible:', err.message);
+        console.log("📍 Seguimiento automático no disponible:", err.message);
         // No mostrar error al usuario, simplemente continuar sin ubicación
       }
     };
@@ -184,18 +213,22 @@ const GoogleMapsComponent = () => {
 
   // Crear marcadores de edificios
   const createBuildingMarkers = (map) => {
-    BUILDINGS_DATA.forEach(building => {
+    BUILDINGS_DATA.forEach((building) => {
       const marker = createBuildingMarker(map, building);
       const infoWindow = new window.google.maps.InfoWindow({
-        content: createBuildingInfoContent(building)
+        content: createBuildingInfoContent(building),
       });
 
       // Evento click del marcador
       const addClickListener = () => {
         if (marker.addListener) {
-          marker.addListener('click', () => handleBuildingClick(building, marker, infoWindow));
+          marker.addListener("click", () =>
+            handleBuildingClick(building, marker, infoWindow)
+          );
         } else if (marker.addEventListener) {
-          marker.addEventListener('click', () => handleBuildingClick(building, marker, infoWindow));
+          marker.addEventListener("click", () =>
+            handleBuildingClick(building, marker, infoWindow)
+          );
         }
       };
 
@@ -204,30 +237,41 @@ const GoogleMapsComponent = () => {
   };
 
   // Manejar click en edificio
+
   const handleBuildingClick = (building, marker, infoWindow) => {
     infoWindow.open(mapInstance.current, marker);
     setSelectedBuilding(building);
 
-    // Adjuntar evento al botón de direcciones
+    // Inicializar efecto después de que el contenido esté disponible
     setTimeout(() => {
+      const tiltElement = document.querySelector(".tilt-image");
+      if (tiltElement) {
+        VanillaTilt.init(tiltElement, {
+          max: 15,
+          speed: 400,
+          glare: true,
+          "max-glare": 0.3,
+        });
+      }
+
       const button = document.getElementById(`directions-btn-${building.id}`);
       if (button) {
-        button.addEventListener('click', () => handleGetDirections(building));
+        button.addEventListener("click", () => handleGetDirections(building));
       }
     }, 100);
   };
 
   // Función mejorada para obtener direcciones con ubicación automática
   const handleGetDirections = async (building) => {
-    console.log('🗺️ Solicitando direcciones para:', building.name);
-    console.log('📍 Estado actual de ubicación:', userLocation);
+    console.log("🗺️ Solicitando direcciones para:", building.name);
+    console.log("📍 Estado actual de ubicación:", userLocation);
 
     let currentUserLocation = userLocation;
 
     // Si no tenemos ubicación, intentar obtenerla automáticamente
     if (!currentUserLocation) {
-      console.log('🔄 Obteniendo ubicación actual...');
-      
+      console.log("🔄 Obteniendo ubicación actual...");
+
       try {
         // Intentar obtener ubicación de forma directa y rápida
         currentUserLocation = await new Promise((resolve, reject) => {
@@ -237,7 +281,7 @@ const GoogleMapsComponent = () => {
                 lat: position.coords.latitude,
                 lng: position.coords.longitude,
                 accuracy: position.coords.accuracy,
-                timestamp: position.timestamp
+                timestamp: position.timestamp,
               };
               resolve(location);
             },
@@ -247,29 +291,35 @@ const GoogleMapsComponent = () => {
             {
               enableHighAccuracy: false, // Usar ubicación menos precisa pero más rápida
               timeout: 3000, // Timeout corto
-              maximumAge: 60000 // Permitir ubicaciones de hasta 1 minuto
+              maximumAge: 60000, // Permitir ubicaciones de hasta 1 minuto
             }
           );
         });
-        
+
         // Actualizar estado con la nueva ubicación
         handleLocationUpdate(currentUserLocation);
-        console.log('✅ Ubicación obtenida para direcciones:', currentUserLocation);
-        
+        console.log(
+          "✅ Ubicación obtenida para direcciones:",
+          currentUserLocation
+        );
       } catch (err) {
-        console.error('❌ No se pudo obtener ubicación:', err);
-        
+        console.error("❌ No se pudo obtener ubicación:", err);
+
         // Mostrar mensaje específico según el tipo de error
-        let errorMessage = 'No se pudo obtener tu ubicación para calcular la ruta.';
-        
+        let errorMessage =
+          "No se pudo obtener tu ubicación para calcular la ruta.";
+
         if (err.code === 1) {
-          errorMessage = 'Los permisos de ubicación están denegados.\n\nPara obtener direcciones, permite el acceso a la ubicación en tu navegador.';
+          errorMessage =
+            "Los permisos de ubicación están denegados.\n\nPara obtener direcciones, permite el acceso a la ubicación en tu navegador.";
         } else if (err.code === 2) {
-          errorMessage = 'No se pudo determinar tu ubicación.\n\nVerifica que tengas GPS activado o que estés en una zona con buena señal.';
+          errorMessage =
+            "No se pudo determinar tu ubicación.\n\nVerifica que tengas GPS activado o que estés en una zona con buena señal.";
         } else if (err.code === 3) {
-          errorMessage = 'La búsqueda de ubicación tardó demasiado.\n\nInténtalo de nuevo.';
+          errorMessage =
+            "La búsqueda de ubicación tardó demasiado.\n\nInténtalo de nuevo.";
         }
-        
+
         alert(errorMessage);
         return;
       }
@@ -282,8 +332,13 @@ const GoogleMapsComponent = () => {
   // Función separada para calcular direcciones
   const calculateDirections = async (userPos, building) => {
     try {
-      console.log('🧮 Calculando ruta desde:', userPos, 'hasta:', building.name);
-      
+      console.log(
+        "🧮 Calculando ruta desde:",
+        userPos,
+        "hasta:",
+        building.name
+      );
+
       const result = await calculateAndShowDirections(
         mapInstance.current,
         { lat: userPos.lat, lng: userPos.lng },
@@ -291,23 +346,23 @@ const GoogleMapsComponent = () => {
       );
 
       // Mostrar información de la ruta
-      const routeInfo = `Ruta a ${building.name}:\n\n` +
-                      `📏 Distancia: ${result.distance}\n` +
-                      `⏱️ Tiempo estimado: ${result.duration}\n` +
-                      `🚶‍♂️ Modo: Caminando`;
-      
+      const routeInfo =
+        `Ruta a ${building.name}:\n\n` +
+        `📏 Distancia: ${result.distance}\n` +
+        `⏱️ Tiempo estimado: ${result.duration}\n` +
+        `🚶‍♂️ Modo: Caminando`;
+
       alert(routeInfo);
-      console.log('✅ Ruta calculada exitosamente:', result);
-      
+      console.log("✅ Ruta calculada exitosamente:", result);
     } catch (err) {
-      console.error('❌ Error calculando ruta:', err);
+      console.error("❌ Error calculando ruta:", err);
       alert(`Error calculando la ruta: ${err.message}`);
     }
   };
 
   // Manejar actualización de ubicación
   const handleLocationUpdate = (location) => {
-    console.log('📍 Actualizando ubicación:', location);
+    console.log("📍 Actualizando ubicación:", location);
     setUserLocation(location);
 
     if (mapInstance.current) {
@@ -326,24 +381,32 @@ const GoogleMapsComponent = () => {
       }
 
       // Crear nuevo marcador
-      userMarkerRef.current = createUserMarker(mapInstance.current, location, location.accuracy);
-      
+      userMarkerRef.current = createUserMarker(
+        mapInstance.current,
+        location,
+        location.accuracy
+      );
+
       // Crear círculo de precisión
       if (location.accuracy) {
         accuracyCircleRef.current = createAccuracyCircle(
-          mapInstance.current, 
-          location, 
+          mapInstance.current,
+          location,
           location.accuracy
         );
       }
     }
 
-    console.log(`📍 Ubicación actualizada: ${location.lat.toFixed(6)}, ${location.lng.toFixed(6)} (±${Math.round(location.accuracy)}m)`);
+    console.log(
+      `📍 Ubicación actualizada: ${location.lat.toFixed(
+        6
+      )}, ${location.lng.toFixed(6)} (±${Math.round(location.accuracy)}m)`
+    );
   };
 
   // Manejar errores de ubicación de forma silenciosa
   const handleLocationError = (err) => {
-    console.log('📍 Error de ubicación (silencioso):', err.message);
+    console.log("📍 Error de ubicación (silencioso):", err.message);
     // No mostrar errores automáticamente al usuario
     // Solo registrar para debugging
     setIsTracking(false);
@@ -359,21 +422,21 @@ const GoogleMapsComponent = () => {
           watchIdRef.current = null;
         }
         setIsTracking(false);
-        console.log('🛑 Seguimiento detenido manualmente');
+        console.log("🛑 Seguimiento detenido manualmente");
       } catch (err) {
-        console.error('Error al detener seguimiento:', err);
+        console.error("Error al detener seguimiento:", err);
       }
     } else {
       // Iniciar tracking
       setError(null);
-      
+
       try {
         // Verificación básica de geolocalización
         if (!navigator.geolocation) {
-          throw new Error('Geolocalización no disponible en este navegador');
+          throw new Error("Geolocalización no disponible en este navegador");
         }
 
-        console.log('🎯 Iniciando seguimiento manual...');
+        console.log("🎯 Iniciando seguimiento manual...");
 
         // Obtener ubicación inicial sin verificar permisos complejos
         const location = await new Promise((resolve, reject) => {
@@ -383,16 +446,16 @@ const GoogleMapsComponent = () => {
                 lat: position.coords.latitude,
                 lng: position.coords.longitude,
                 accuracy: position.coords.accuracy,
-                timestamp: position.timestamp
+                timestamp: position.timestamp,
               });
             },
             (error) => {
               const messages = {
-                1: 'Permisos de ubicación denegados',
-                2: 'Ubicación no disponible',
-                3: 'Tiempo de espera agotado'
+                1: "Permisos de ubicación denegados",
+                2: "Ubicación no disponible",
+                3: "Tiempo de espera agotado",
               };
-              reject(new Error(messages[error.code] || 'Error desconocido'));
+              reject(new Error(messages[error.code] || "Error desconocido"));
             },
             LOCATION_OPTIONS
           );
@@ -407,28 +470,30 @@ const GoogleMapsComponent = () => {
               lat: position.coords.latitude,
               lng: position.coords.longitude,
               accuracy: position.coords.accuracy,
-              timestamp: position.timestamp
+              timestamp: position.timestamp,
             };
             handleLocationUpdate(newLocation);
           },
           (error) => {
             const messages = {
-              1: 'Permisos de ubicación denegados',
-              2: 'Ubicación no disponible',
-              3: 'Tiempo de espera agotado'
+              1: "Permisos de ubicación denegados",
+              2: "Ubicación no disponible",
+              3: "Tiempo de espera agotado",
             };
-            handleLocationError(new Error(messages[error.code] || 'Error desconocido'));
+            handleLocationError(
+              new Error(messages[error.code] || "Error desconocido")
+            );
           },
           LOCATION_OPTIONS
         );
-        
+
         if (watchId) {
           watchIdRef.current = watchId;
           setIsTracking(true);
-          console.log('✅ Seguimiento iniciado manualmente');
+          console.log("✅ Seguimiento iniciado manualmente");
         }
       } catch (err) {
-        console.error('❌ Error al iniciar seguimiento:', err);
+        console.error("❌ Error al iniciar seguimiento:", err);
         setError(`No se pudo iniciar el seguimiento: ${err.message}`);
       }
     }
@@ -437,13 +502,13 @@ const GoogleMapsComponent = () => {
   // Solicitar permisos manualmente
   const requestLocationAccess = async () => {
     setError(null);
-    
+
     try {
       if (!navigator.geolocation) {
-        throw new Error('Geolocalización no disponible en este navegador');
+        throw new Error("Geolocalización no disponible en este navegador");
       }
 
-      console.log('🔐 Solicitando permisos de ubicación...');
+      console.log("🔐 Solicitando permisos de ubicación...");
 
       const location = await new Promise((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(
@@ -452,16 +517,16 @@ const GoogleMapsComponent = () => {
               lat: position.coords.latitude,
               lng: position.coords.longitude,
               accuracy: position.coords.accuracy,
-              timestamp: position.timestamp
+              timestamp: position.timestamp,
             });
           },
           (error) => {
             const messages = {
-              1: 'Permisos de ubicación denegados',
-              2: 'Ubicación no disponible',
-              3: 'Tiempo de espera agotado'
+              1: "Permisos de ubicación denegados",
+              2: "Ubicación no disponible",
+              3: "Tiempo de espera agotado",
             };
-            reject(new Error(messages[error.code] || 'Error desconocido'));
+            reject(new Error(messages[error.code] || "Error desconocido"));
           },
           LOCATION_OPTIONS
         );
@@ -469,17 +534,16 @@ const GoogleMapsComponent = () => {
 
       handleLocationUpdate(location);
       setPermissionRequested(true);
-      
+
       // Actualizar estado de forma simple
-      setLocationStatus(prev => ({ 
-        ...prev, 
-        permission: { state: 'granted', message: 'Permisos concedidos' }
+      setLocationStatus((prev) => ({
+        ...prev,
+        permission: { state: "granted", message: "Permisos concedidos" },
       }));
 
-      console.log('✅ Permisos concedidos y ubicación obtenida');
-      
+      console.log("✅ Permisos concedidos y ubicación obtenida");
     } catch (err) {
-      console.error('❌ Error al solicitar acceso a ubicación:', err);
+      console.error("❌ Error al solicitar acceso a ubicación:", err);
       setError(err.message);
     }
   };
@@ -491,7 +555,7 @@ const GoogleMapsComponent = () => {
         try {
           navigator.geolocation.clearWatch(watchIdRef.current);
         } catch (err) {
-          console.error('Error en cleanup:', err);
+          console.error("Error en cleanup:", err);
         }
       }
     };
@@ -500,7 +564,7 @@ const GoogleMapsComponent = () => {
   return (
     <div className="google-maps-container">
       {/* Error Display - solo mostrar errores críticos */}
-      {error && error.includes('inicializando mapa') && (
+      {error && error.includes("inicializando mapa") && (
         <div className="error-display">
           <div>
             <strong>⚠️ Error:</strong> {error}
@@ -515,43 +579,64 @@ const GoogleMapsComponent = () => {
           <div>
             <button
               onClick={toggleTracking}
-              className={`button-base tracking-button ${isTracking ? 'active' : 'inactive'}`}
+              className={`button-base tracking-button ${isTracking ? "active" : "inactive"
+                }`}
               disabled={!locationStatus.available}
             >
-              {isTracking ? '🛑 Detener Seguimiento' : '🎯 Iniciar Seguimiento'}
+              {isTracking ? "🛑 Detener Seguimiento" : "🎯 Iniciar Seguimiento"}
             </button>
           </div>
         </div>
-        
+
         <p className="description-text">
-          {userLocation 
-            ? `📍 Ubicación detectada (±${Math.round(userLocation.accuracy)}m) - Haz clic en un edificio para obtener direcciones`
-            : '📍 Detectando ubicación automáticamente... Haz clic en un edificio para calcular rutas'
-          }
+          {userLocation
+            ? `📍 Ubicación detectada (±${Math.round(
+              userLocation.accuracy
+            )}m) - Haz clic en un edificio para obtener direcciones`
+            : "📍 Detectando ubicación automáticamente... Haz clic en un edificio para calcular rutas"}
         </p>
 
         <div className="status-grid">
           <div className="status-item">
-            <div className={`status-dot ${isMapReady ? 'ready' : 'inactive'}`}></div>
-            <span>Mapa: {isMapReady ? 'Listo' : 'Cargando...'}</span>
+            <div
+              className={`status-dot ${isMapReady ? "ready" : "inactive"}`}
+            ></div>
+            <span>Mapa: {isMapReady ? "Listo" : "Cargando..."}</span>
           </div>
           <div className="status-item">
-            <div className={`status-dot ${locationStatus.available ? 'ready' : 'error'}`}></div>
-            <span>GPS: {locationStatus.available ? 'Disponible' : 'No disponible'}</span>
+            <div
+              className={`status-dot ${locationStatus.available ? "ready" : "error"
+                }`}
+            ></div>
+            <span>
+              GPS: {locationStatus.available ? "Disponible" : "No disponible"}
+            </span>
           </div>
           <div className="status-item">
-            <div className={`status-dot ${isTracking ? 'ready' : 'inactive'}`}></div>
-            <span>Seguimiento: {isTracking ? 'Activo' : 'Inactivo'}</span>
+            <div
+              className={`status-dot ${isTracking ? "ready" : "inactive"}`}
+            ></div>
+            <span>Seguimiento: {isTracking ? "Activo" : "Inactivo"}</span>
           </div>
           <div className="status-item">
-            <div className={`status-dot ${userLocation ? 'ready' : 'warning'}`}></div>
-            <span>Ubicación: {userLocation ? 'Detectada' : 'Detectando...'}</span>
+            <div
+              className={`status-dot ${userLocation ? "ready" : "warning"}`}
+            ></div>
+            <span>
+              Ubicación: {userLocation ? "Detectada" : "Detectando..."}
+            </span>
           </div>
         </div>
       </div>
 
       {/* Mapa */}
       <div ref={mapRef} className="map-container" />
+      <StaffModal
+        isOpen={staffModalOpen}
+        onClose={() => setStaffModalOpen(false)}
+        staff={staffModalBuilding?.staff || []}
+        buildingName={staffModalBuilding?.name || ""}
+      />
     </div>
   );
 };
