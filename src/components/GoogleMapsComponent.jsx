@@ -34,7 +34,7 @@ const GoogleMapsComponent = () => {
   const accuracyCircleRef = useRef(null);
   const watchIdRef = useRef(null);
   
-  // NUEVA: Referencia para manejar la InfoWindow activa
+  // Referencia para manejar la InfoWindow activa
   const activeInfoWindowRef = useRef(null);
 
   // Estados
@@ -92,6 +92,16 @@ const GoogleMapsComponent = () => {
       }
     };
   }, []);
+
+  // Exponer función de toggle tracking globalmente para el header
+  useEffect(() => {
+    window.toggleLocationTracking = toggleTracking;
+    window.getTrackingStatus = () => ({
+      isTracking,
+      locationAvailable: locationStatus.available,
+      userLocation
+    });
+  }, [isTracking, locationStatus.available, userLocation]);
 
   // Inicializar mapa
   useEffect(() => {
@@ -215,7 +225,7 @@ const GoogleMapsComponent = () => {
     startAutoTracking();
   }, [isMapReady, locationStatus]);
 
-  // NUEVO: Función para cerrar InfoWindow activa
+  // Función para cerrar InfoWindow activa
   const closeActiveInfoWindow = () => {
     if (activeInfoWindowRef.current) {
       activeInfoWindowRef.current.close();
@@ -224,7 +234,7 @@ const GoogleMapsComponent = () => {
     }
   };
 
-  // Crear marcadores de edificios - MODIFICADO
+  // Crear marcadores de edificios
   const createBuildingMarkers = (map) => {
     BUILDINGS_DATA.forEach((building) => {
       const marker = createBuildingMarker(map, building);
@@ -232,7 +242,7 @@ const GoogleMapsComponent = () => {
         content: createBuildingInfoContent(building),
       });
 
-      // NUEVO: Agregar listener para cerrar cuando se cierra manualmente
+      // Agregar listener para cerrar cuando se cierra manualmente
       infoWindow.addListener('closeclick', () => {
         if (activeInfoWindowRef.current === infoWindow) {
           activeInfoWindowRef.current = null;
@@ -240,7 +250,7 @@ const GoogleMapsComponent = () => {
         }
       });
 
-      // Evento click del marcador - MODIFICADO
+      // Evento click del marcador
       const addClickListener = () => {
         if (marker.addListener) {
           marker.addListener("click", () =>
@@ -257,15 +267,15 @@ const GoogleMapsComponent = () => {
     });
   };
 
-  // Manejar click en edificio - MODIFICADO
+  // Manejar click en edificio
   const handleBuildingClick = (building, marker, infoWindow) => {
-    // NUEVO: Cerrar InfoWindow activa antes de abrir la nueva
+    // Cerrar InfoWindow activa antes de abrir la nueva
     closeActiveInfoWindow();
     
     // Abrir la nueva InfoWindow
     infoWindow.open(mapInstance.current, marker);
     
-    // NUEVO: Establecer como InfoWindow activa
+    // Establecer como InfoWindow activa
     activeInfoWindowRef.current = infoWindow;
     
     setSelectedBuilding(building);
@@ -529,56 +539,7 @@ const GoogleMapsComponent = () => {
     }
   };
 
-  // Solicitar permisos manualmente
-  const requestLocationAccess = async () => {
-    setError(null);
-
-    try {
-      if (!navigator.geolocation) {
-        throw new Error("Geolocalización no disponible en este navegador");
-      }
-
-      console.log("🔐 Solicitando permisos de ubicación...");
-
-      const location = await new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            resolve({
-              lat: position.coords.latitude,
-              lng: position.coords.longitude,
-              accuracy: position.coords.accuracy,
-              timestamp: position.timestamp,
-            });
-          },
-          (error) => {
-            const messages = {
-              1: "Permisos de ubicación denegados",
-              2: "Ubicación no disponible",
-              3: "Tiempo de espera agotado",
-            };
-            reject(new Error(messages[error.code] || "Error desconocido"));
-          },
-          LOCATION_OPTIONS
-        );
-      });
-
-      handleLocationUpdate(location);
-      setPermissionRequested(true);
-
-      // Actualizar estado de forma simple
-      setLocationStatus((prev) => ({
-        ...prev,
-        permission: { state: "granted", message: "Permisos concedidos" },
-      }));
-
-      console.log("✅ Permisos concedidos y ubicación obtenida");
-    } catch (err) {
-      console.error("❌ Error al solicitar acceso a ubicación:", err);
-      setError(err.message);
-    }
-  };
-
-  // Cleanup al desmontar - MODIFICADO
+  // Cleanup al desmontar
   useEffect(() => {
     return () => {
       // Cerrar InfoWindow activa al desmontar
@@ -605,65 +566,9 @@ const GoogleMapsComponent = () => {
         </div>
       )}
 
-      {/* Panel de información - solo mostrar estado sin botones de solicitud */}
-      <div className="controls-section">
-        <div className="controls-header">
-          <h2 className="main-title">Sistema de Navegación UTEQ</h2>
-          <div>
-            <button
-              onClick={toggleTracking}
-              className={`button-base tracking-button ${isTracking ? "active" : "inactive"
-                }`}
-              disabled={!locationStatus.available}
-            >
-              {isTracking ? "🛑 Detener Seguimiento" : "🎯 Iniciar Seguimiento"}
-            </button>
-          </div>
-        </div>
-
-        <p className="description-text">
-          {userLocation
-            ? `📍 Ubicación detectada (±${Math.round(
-              userLocation.accuracy
-            )}m) - Haz clic en un edificio para obtener direcciones`
-            : "📍 Detectando ubicación automáticamente... Haz clic en un edificio para calcular rutas"}
-        </p>
-
-        <div className="status-grid">
-          <div className="status-item">
-            <div
-              className={`status-dot ${isMapReady ? "ready" : "inactive"}`}
-            ></div>
-            <span>Mapa: {isMapReady ? "Listo" : "Cargando..."}</span>
-          </div>
-          <div className="status-item">
-            <div
-              className={`status-dot ${locationStatus.available ? "ready" : "error"
-                }`}
-            ></div>
-            <span>
-              GPS: {locationStatus.available ? "Disponible" : "No disponible"}
-            </span>
-          </div>
-          <div className="status-item">
-            <div
-              className={`status-dot ${isTracking ? "ready" : "inactive"}`}
-            ></div>
-            <span>Seguimiento: {isTracking ? "Activo" : "Inactivo"}</span>
-          </div>
-          <div className="status-item">
-            <div
-              className={`status-dot ${userLocation ? "ready" : "warning"}`}
-            ></div>
-            <span>
-              Ubicación: {userLocation ? "Detectada" : "Detectando..."}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Mapa */}
+      {/* Mapa - Ahora ocupa todo el espacio disponible */}
       <div ref={mapRef} className="map-container" />
+      
       <StaffModal
         isOpen={staffModalOpen}
         onClose={() => setStaffModalOpen(false)}
