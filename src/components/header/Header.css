@@ -103,12 +103,12 @@
 @media (max-width: 768px) {
   .header-component {
     padding: 0.75rem 1rem;
-    flex-wrap: wrap;
-    gap: 0.5rem;
+    /* Mantenemos flex-direction: row para que todo esté en la misma fila */
   }
   
   .header-left {
     gap: 0.75rem;
+    flex: 1; /* Permitir que ocupe el espacio disponible */
   }
   
   .header-component img {
@@ -127,25 +127,50 @@
   .tracking-button {
     padding: 0.6rem 1rem;
     font-size: 0.9rem;
+    white-space: nowrap; /* Evitar que el texto del botón se rompa */
   }
   
   .tracking-text {
-    display: none; /* Ocultar texto en móviles, solo mostrar icono */
+    display: inline; /* Mantener texto visible */
   }
 }
 
 @media (max-width: 480px) {
   .header-component {
-    flex-direction: column;
-    text-align: center;
-    gap: 1rem;
+    padding: 0.5rem 1rem;
+    /* Mantenemos la misma fila incluso en móviles pequeños */
   }
   
   .header-left {
-    justify-content: center;
+    gap: 0.5rem;
+    min-width: 0; /* Permitir que se comprima si es necesario */
+  }
+  
+  .header-component img {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0; /* No permitir que la imagen se comprima */
+  }
+  
+  .header-title h1 {
+    font-size: 1.1rem;
+  }
+  
+  .header-title p {
+    font-size: 0.75rem;
+    /* Permitir que el texto se truncue si es muy largo */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  .tracking-button {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    flex-shrink: 0; /* No permitir que el botón se comprima */
   }
   
   .tracking-text {
-    display: inline; /* Mostrar texto en móviles muy pequeños */
+    display: inline; /* Mantener texto visible en móviles pequeños */
   }
 }

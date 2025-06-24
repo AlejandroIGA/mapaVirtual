@@ -113,10 +113,10 @@ export const createBuildingMarker = (map, building) => {
 
   // Crear un elemento de imagen para el icono
   const iconImg = document.createElement('img');
-  iconImg.src = MackersImage; 
-  iconImg.alt = 'Icono de edificio'; 
+  iconImg.src = MackersImage;
+  iconImg.alt = 'Icono de edificio';
   iconImg.style.width = '28px';
-  iconImg.style.height = '28px'; 
+  iconImg.style.height = '28px';
 
   markerDiv.appendChild(iconImg); // Añadir la imagen al div del marcador
 

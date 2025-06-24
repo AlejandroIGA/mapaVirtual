@@ -4,6 +4,7 @@ import RectoriaImg from '../assets/Rectoria.png';
 import BibliotecaImg from '../assets/Biblioteca.png';
 import PidetImg from '../assets/Pidet.png';
 import AuditorioImg from '../assets/Auditorio.png';
+
 export const BUILDINGS_DATA = [
     {
         id: 1,
@@ -76,13 +77,15 @@ export const BUILDINGS_DATA = [
     }
 ];
 
+// Configuración limpia del mapa - los estilos se aplicarán programáticamente
 export const MAP_CONFIG = {
     center: { lat: 20.572976640827633, lng: -100.419786585765 },
     zoom: 18,
     mapTypeId: 'roadmap',
     streetViewControl: false,
     rotateControl: true,
-    mapId: 'DEMO_MAP_ID'
+    mapId: '83ab829c40d2091c30c1ba76',
+    // Los estilos y clickableIcons se aplicarán en setupMapDefaults()
 };
 
 export const GOOGLE_MAPS_CONFIG = {
