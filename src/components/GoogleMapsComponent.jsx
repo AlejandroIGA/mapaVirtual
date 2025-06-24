@@ -26,12 +26,16 @@ import {
   setupMapDefaults,
 } from "../utils/mapUtils";
 import VanillaTilt from "vanilla-tilt";
+
 const GoogleMapsComponent = () => {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
   const userMarkerRef = useRef(null);
   const accuracyCircleRef = useRef(null);
   const watchIdRef = useRef(null);
+  
+  // NUEVA: Referencia para manejar la InfoWindow activa
+  const activeInfoWindowRef = useRef(null);
 
   // Estados
   const [userLocation, setUserLocation] = useState(null);
@@ -72,6 +76,7 @@ const GoogleMapsComponent = () => {
 
     checkLocationAvailability();
   }, []);
+
   //Abrir Staff Modal
   useEffect(() => {
     window.openStaffModalById = (buildingId) => {
@@ -87,7 +92,6 @@ const GoogleMapsComponent = () => {
       }
     };
   }, []);
-
 
   // Inicializar mapa
   useEffect(() => {
@@ -211,7 +215,16 @@ const GoogleMapsComponent = () => {
     startAutoTracking();
   }, [isMapReady, locationStatus]);
 
-  // Crear marcadores de edificios
+  // NUEVO: Función para cerrar InfoWindow activa
+  const closeActiveInfoWindow = () => {
+    if (activeInfoWindowRef.current) {
+      activeInfoWindowRef.current.close();
+      activeInfoWindowRef.current = null;
+      console.log("📋 InfoWindow anterior cerrada");
+    }
+  };
+
+  // Crear marcadores de edificios - MODIFICADO
   const createBuildingMarkers = (map) => {
     BUILDINGS_DATA.forEach((building) => {
       const marker = createBuildingMarker(map, building);
@@ -219,7 +232,15 @@ const GoogleMapsComponent = () => {
         content: createBuildingInfoContent(building),
       });
 
-      // Evento click del marcador
+      // NUEVO: Agregar listener para cerrar cuando se cierra manualmente
+      infoWindow.addListener('closeclick', () => {
+        if (activeInfoWindowRef.current === infoWindow) {
+          activeInfoWindowRef.current = null;
+          console.log("📋 InfoWindow cerrada manualmente");
+        }
+      });
+
+      // Evento click del marcador - MODIFICADO
       const addClickListener = () => {
         if (marker.addListener) {
           marker.addListener("click", () =>
@@ -236,11 +257,20 @@ const GoogleMapsComponent = () => {
     });
   };
 
-  // Manejar click en edificio
-
+  // Manejar click en edificio - MODIFICADO
   const handleBuildingClick = (building, marker, infoWindow) => {
+    // NUEVO: Cerrar InfoWindow activa antes de abrir la nueva
+    closeActiveInfoWindow();
+    
+    // Abrir la nueva InfoWindow
     infoWindow.open(mapInstance.current, marker);
+    
+    // NUEVO: Establecer como InfoWindow activa
+    activeInfoWindowRef.current = infoWindow;
+    
     setSelectedBuilding(building);
+
+    console.log(`📋 InfoWindow abierta para: ${building.name}`);
 
     // Inicializar efecto después de que el contenido esté disponible
     setTimeout(() => {
@@ -548,9 +578,12 @@ const GoogleMapsComponent = () => {
     }
   };
 
-  // Cleanup al desmontar
+  // Cleanup al desmontar - MODIFICADO
   useEffect(() => {
     return () => {
+      // Cerrar InfoWindow activa al desmontar
+      closeActiveInfoWindow();
+      
       if (watchIdRef.current && navigator.geolocation) {
         try {
           navigator.geolocation.clearWatch(watchIdRef.current);

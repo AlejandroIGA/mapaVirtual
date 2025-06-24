@@ -35,16 +35,13 @@
 }
 
 .controls-section {
-  background-color: #e7f3ff;
   padding: 12px 16px;
-  margin-bottom: 8px;
-  border-radius: 8px;
   flex-shrink: 0; /* Evita que se comprima */
 }
 
 .controls-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   margin-bottom: 8px;
 }
